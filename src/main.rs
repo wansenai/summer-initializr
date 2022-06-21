@@ -1,40 +1,56 @@
-use std::process::Command;
+
 use std::fs;
-use std::fs::File;
-use std::io::Result;
-
-fn main() -> Result<()> {
-   //Command::new("cargo")
-  // .arg("new")
-   //.arg("hello")
-   //.output()
-  // .expect("command is failed!");
-  fs::create_dir_all("/Users/fenggege/work/opensource/summer-initializr/test/hello/src")?;
-  fs::write("/Users/fenggege/work/opensource/summer-initializr/test/hello/src/main.rs",
-"fn main () {
-   println!(\"hello world\");
-}"
-   )?;
-  fs::write("/Users/fenggege/work/opensource/summer-initializr/test/hello/Cargo.toml"
-  ,"
-  [package]
-  name = \"summer-initializr\"
-  version = \"0.1.0\"
-  edition = \"2021\"
-  
-  # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-  
-  [dependencies]
-  cargo = \"0.62\"")?;
-  Ok(())
-}
-
-pub struct Dir {
-   name: String,
-   file: File,
-}
-
+//use bytes::Bytes;
+//use std::io::prelude::*;
+use serde_derive::{Deserialize, Serialize};
+type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
+///包名对象
+#[derive(Deserialize, Serialize)]
 pub struct Package {
    name: String,
-   file: File,
+   version: String,
+   edition: String,
+   denpendecies: Vec<Dependency>,
 }
+///依赖对象
+#[derive(Deserialize, Serialize)]
+pub struct Dependency {
+   name: String,
+   version: String,
+}
+
+async fn parse_request(url: String) -> Result<()> {
+   let response = reqwest::get(url)
+                                    .await?
+                                    .json::<Package>()
+                                    .await?;
+   
+   return_back(response);
+   Ok(())
+}
+
+async fn return_back(package: Package) -> Result<()> {
+   let version = package.version;
+   let name = package.name;
+   let edition = package.edition;
+   let denpendecies = package.denpendecies;
+   let path = "./".to_string() + &name + "/src";
+   fs::create_dir_all(path.clone())?;
+   let main_contents = "fn main () {
+      println!(\"hello world\");
+   }";
+   fs::write(path.clone() + "/main.rs", main_contents)?;
+
+   let cargo_contents = "[package]\n".to_string()
+   + "name = " + "" +&name+"";
+   fs::write("./".to_string() + &name + "/Cargo.toml",cargo_contents)?;
+   
+   Ok(())
+}
+
+#[tokio::main]
+async fn main() {
+  // fetch_url("".to_string(),"demo".to_string()).await.unwrap();
+  parse_request("http://www.baidu.com".to_string()).await.unwrap();
+}
+
