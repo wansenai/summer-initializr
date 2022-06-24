@@ -1,9 +1,31 @@
 
-use std::fs;
-//use bytes::Bytes;
-//use std::io::prelude::*;
+use std::{
+   fs,
+   io::{Read, Write},
+   net::TcpListener,
+   thread,
+};
 use serde_derive::{Deserialize, Serialize};
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
+
+fn main() {
+   let listener = TcpListener::bind("").unwrap();
+   loop {
+      let (mut stream, addr) = listener.accept().unwrap();
+      println!("Accepted a new connection: {}", addr);
+      thread::spawn(move || {
+         let mut buf = [0; std::mem::size_of::<usize>()];
+         stream.read_exact(&mut buf).unwrap();
+         let json_size = usize::from_be_bytes(buf);
+         let mut json_buf = vec![0; json_size];
+         stream.read(&mut json_buf).unwrap();
+         let value: Package = serde_json::from_slice(&json_buf).unwrap();
+         //let data = String::from_utf8_lossy(&buf).to_string();
+         //println!("data:{:?}", serde_json::from_str(&data));
+         stream.write_all(b"").unwrap();
+      });
+   }
+}
 ///包名对象
 #[derive(Deserialize, Serialize)]
 pub struct Package {
@@ -19,38 +41,23 @@ pub struct Dependency {
    version: String,
 }
 
-async fn parse_request(url: String) -> Result<()> {
-   let response = reqwest::get(url)
-                                    .await?
-                                    .json::<Package>()
-                                    .await?;
-   
-   return_back(response);
-   Ok(())
-}
-
-async fn return_back(package: Package) -> Result<()> {
-   let version = package.version;
+fn return_back(package: Package) -> Result<()> {
+   let mut version = package.version;
    let name = package.name;
-   let edition = package.edition;
-   let denpendecies = package.denpendecies;
+   let mut edition = package.edition;
+   let mut denpendecies = package.denpendecies;
    let path = "./".to_string() + &name + "/src";
-   fs::create_dir_all(path.clone())?;
+   fs::create_dir_all(&path)?;
    let main_contents = "fn main () {
       println!(\"hello world\");
    }";
-   fs::write(path.clone() + "/main.rs", main_contents)?;
+  // fs::write(path.push_str("/main.rs"), main_contents)?;
 
    let cargo_contents = "[package]\n".to_string()
    + "name = " + "" +&name+"";
-   fs::write("./".to_string() + &name + "/Cargo.toml",cargo_contents)?;
+   fs::write("./".to_string()+ &name + "/Cargo.toml", cargo_contents)?;
    
    Ok(())
 }
 
-#[tokio::main]
-async fn main() {
-  // fetch_url("".to_string(),"demo".to_string()).await.unwrap();
-  parse_request("http://www.baidu.com".to_string()).await.unwrap();
-}
 
