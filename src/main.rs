@@ -41,21 +41,40 @@ pub struct Dependency {
    version: String,
 }
 
-fn return_back(package: Package) -> Result<()> {
-   let mut version = package.version;
+fn write_buf(package: Package) -> Result<()> {
+   let version = package.version;
    let name = package.name;
-   let mut edition = package.edition;
-   let mut denpendecies = package.denpendecies;
+   let edition = package.edition;
+   let denpendecies = package.denpendecies;
    let path = "./".to_string() + &name + "/src";
    fs::create_dir_all(&path)?;
    let main_contents = "fn main () {
       println!(\"hello world\");
    }";
-  // fs::write(path.push_str("/main.rs"), main_contents)?;
-
-   let cargo_contents = "[package]\n".to_string()
-   + "name = " + "" +&name+"";
-   fs::write("./".to_string()+ &name + "/Cargo.toml", cargo_contents)?;
+   fs::write("./".to_string() + &name + "/src/main.rs", main_contents)?;
+   let mut cargo_content = String::new();
+   cargo_content.push_str("[package]\n");
+   cargo_content.push_str("name = ");
+   cargo_content.push_str("\"");
+   cargo_content.push_str(&name);
+   cargo_content.push_str("\"");
+   cargo_content.push_str("\nedition = ");
+   cargo_content.push_str("\"");
+   cargo_content.push_str(&edition);
+   cargo_content.push_str("\"");
+   cargo_content.push_str("\nversion = ");
+   cargo_content.push_str("\"");
+   cargo_content.push_str(&version);
+   cargo_content.push_str("\"");
+   cargo_content.push_str("\n[dependcies]");
+   for d in &denpendecies {
+      cargo_content.push_str(d.name.as_str());
+      cargo_content.push_str(" = ");
+      cargo_content.push_str("\"");
+      cargo_content.push_str(d.version.as_str());
+      cargo_content.push_str("\"");
+   };
+   fs::write("./".to_string()+ &name + "/Cargo.toml", cargo_content)?;
    
    Ok(())
 }
