@@ -8,6 +8,7 @@ use zip::result::ZipResult;
 use zip::write::{FileOptions, ZipWriter};
 use serde_derive::{Deserialize, Serialize};
 use summer_boot::{Request, Result};
+use summer_boot::log::warn;
 
 ///包名对象
 #[derive(Deserialize, Serialize)]
@@ -30,7 +31,7 @@ async fn main() {
    summer_boot::run();
 }
 
-#[summer_boot::post("/test/api")]
+#[summer_boot::post("/start.zip")]
 async fn test_api(mut req: Request<()>) -> Result {
    let Package {
       name,
@@ -38,12 +39,14 @@ async fn test_api(mut req: Request<()>) -> Result {
       edition,
       denpendecies
    } = req.body_json().await?;
+   let package = Package {
+        name, version,edition, denpendecies,
+   };
    //初始化项目文件路径
    let mut init_zip_path = String::new();
-   init_zip_path.push_str(&name);
-   init_zip_path.push_str(".zip");
+   init_zip_path.push_str(format!("{}.zip",&package.name).as_str());
    let mut file = File::create(&mut init_zip_path).expect("not exist");
-   create_zip_archive(&mut file);
+   create_zip_archive(&mut file, &package);
    let zip_path = Path::new(&mut init_zip_path);
    //删除文件保留zip文件
    let mut zip_file = File::open(zip_path).unwrap();
@@ -55,17 +58,17 @@ async fn test_api(mut req: Request<()>) -> Result {
 static APP_YML_FILE: &'static [u8] = include_bytes!("../src/resources/application.yml");
 static APP_TEST_YML_FILE: &'static [u8] = include_bytes!("../src/resources/application-test.yml");
 static GITIGNORE: &'static [u8] = include_bytes!("../.gitignore");
+
 ///创建zip文件并且写文件
-/// todo！拼接名称，libs，bins包名
-fn create_zip_archive<T: Seek + Write>(buf: &mut T) -> ZipResult<()> {
+fn create_zip_archive<T: Seek + Write>(buf: &mut T, package: &Package) -> ZipResult<()> {
    let mut writer = ZipWriter::new(buf);
-   writer.start_file("demo/src/resources/application.yml", FileOptions::default())?;
+   writer.start_file(format!("{}/src/resources/application.yml", package.name), FileOptions::default())?;
    writer.write(APP_YML_FILE);
-   writer.start_file("demo/src/resources/application-test.yml", FileOptions::default())?;
+   writer.start_file(format!("{}/src/resources/application-test.yml", package.name), FileOptions::default())?;
    writer.write(APP_TEST_YML_FILE);
-   writer.start_file("demo/.gitignore", FileOptions::default())?;
+   writer.start_file(format!("{}/.gitignore", package.name), FileOptions::default())?;
    writer.write(GITIGNORE);
-   writer.start_file("demo/src/main.rs", FileOptions::default())?;
+   writer.start_file(format!("{}/src/main.rs", package.name), FileOptions::default())?;
    writer.write(b"
    use serde::Deserialize;
    use summer_boot::{Request, Result};
@@ -88,21 +91,26 @@ fn create_zip_archive<T: Seek + Write>(buf: &mut T) -> ZipResult<()> {
        Ok(format!(\"Hello, {}!  {} years old\", name, age).into())
    }
    ");
-   writer.start_file("demo/Cargo.toml", FileOptions::default())?;
-   writer.write(b"
-   [package]
-   name = \"demo\"
-   version = \"0.1.0\"
-   edition = \"2021\"
-   
-   # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-   
-   [dependencies]
-   summer-boot = \"1.0.0\"
-   serde = \"1.0.137\"
-   serde_json = \"1.0.81\"
-   serde_derive = \"1.0.137\"
-   ");
+   writer.start_file(format!("{}/Cargo.toml", package.name), FileOptions::default())?;
+   //option
+   let mut main_rs_str = String::new();
+   main_rs_str.push_str(format!("[package]\nname = \"{}\"\n", package.name).as_str());
+   main_rs_str.push_str(format!("version = \"{:?}\"\n", Some(package.version.as_ref().unwrap())).as_str());
+   main_rs_str.push_str(format!("edition = \"{}\"\n", package.edition.as_ref().unwrap()).as_str());
+   main_rs_str.push_str("\n# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html\n");
+   main_rs_str.push_str("\n[dependencies]\nsummer-boot = \"1.0.0\"\nserde = \"1.0.137\"\nserde_json = \"1.0.81\"\nserde_derive = \"1.0.137\"\n");
+   let dependencies = package.denpendecies.as_ref().unwrap();
+   if dependencies.len() > 0 {
+        for pkg in dependencies {
+            let name = pkg.name.as_ref().unwrap();
+            let version = pkg.version.as_ref().unwrap();
+            main_rs_str.push_str(format!("{} = {} \n", &name, &version).as_str());
+        }
+   }
+   writer.write(main_rs_str.as_bytes());
+   writer.start_file(format!("{}/src/service/mod.rs", package.name), FileOptions::default())?;
+   writer.start_file(format!("{}/src/domain/mod.rs", package.name), FileOptions::default())?;
+   writer.start_file(format!("{}/src/api/mod.rs", package.name), FileOptions::default())?;
    writer.finish()?;
    Ok(())
 }
