@@ -8,7 +8,6 @@ use zip::result::ZipResult;
 use zip::write::{FileOptions, ZipWriter};
 use serde_derive::{Deserialize, Serialize};
 use summer_boot::{Request, Result};
-use summer_boot::log::warn;
 
 ///包名对象
 #[derive(Deserialize, Serialize)]
