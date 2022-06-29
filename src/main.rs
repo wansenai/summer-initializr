@@ -8,6 +8,8 @@ use zip::result::ZipResult;
 use zip::write::{FileOptions, ZipWriter};
 use serde_derive::{Deserialize, Serialize};
 use summer_boot::{Request, Result};
+use summer_boot::log::{info, warn, error};
+use serde_json::*;
 
 ///包名对象
 #[derive(Deserialize, Serialize)]
@@ -30,18 +32,11 @@ async fn main() {
    summer_boot::run();
 }
 
-#[summer_boot::post("/start.zip")]
-async fn test_api(mut req: Request<()>) -> Result {
-   let Package {
-      name,
-      version,
-      edition,
-      denpendecies
-   } = req.body_json().await?;
-   let package = Package {
-        name, version,edition, denpendecies,
-   };
+#[summer_boot::get("/start.zip")]
+async fn start_zip(mut req: Request<()>) -> Result {
+   let body = req.body_string().await?;
    //初始化项目文件路径
+   let package: Package = serde_json::from_str(&body).unwrap();
    let mut init_zip_path = String::new();
    init_zip_path.push_str(format!("{}.zip",&package.name).as_str());
    let mut file = File::create(&mut init_zip_path).expect("not exist");
@@ -91,14 +86,14 @@ fn create_zip_archive<T: Seek + Write>(buf: &mut T, package: &Package) -> ZipRes
    }
    ");
    writer.start_file(format!("{}/Cargo.toml", package.name), FileOptions::default())?;
-   //option
    let mut main_rs_str = String::new();
    main_rs_str.push_str(format!("[package]\nname = \"{}\"\n", package.name).as_str());
-   main_rs_str.push_str(format!("version = \"{:?}\"\n", Some(package.version.as_ref().unwrap())).as_str());
-   main_rs_str.push_str(format!("edition = \"{}\"\n", package.edition.as_ref().unwrap()).as_str());
+   main_rs_str.push_str(format!("version = \"{}\"\n", package.version.as_ref().unwrap_or(&"0.1.0".to_string())).as_str());
+   main_rs_str.push_str(format!("edition = \"{}\"\n", package.edition.as_ref().unwrap_or(&"2021".to_string())).as_str());
    main_rs_str.push_str("\n# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html\n");
    main_rs_str.push_str("\n[dependencies]\nsummer-boot = \"1.0.0\"\nserde = \"1.0.137\"\nserde_json = \"1.0.81\"\nserde_derive = \"1.0.137\"\n");
-   let dependencies = package.denpendecies.as_ref().unwrap();
+   let list = Vec::new();
+   let dependencies = package.denpendecies.as_ref().unwrap_or(&list);
    if dependencies.len() > 0 {
         for pkg in dependencies {
             let name = pkg.name.as_ref().unwrap();
